@@ -126,6 +126,21 @@ class SettingsViewModel(
                 }
             }
         }
+        // The status card derives "active connection" from selectedProfileId. An
+        // automatic switch re-homes the selected profile in the background, so
+        // follow AuthManager's single source of truth instead of waiting for a
+        // settings reload (which would leave the stale connection on screen).
+        viewModelScope.launch {
+            val selectedFlow =
+                runCatching { AuthManager.selectedProfileFlow }.getOrNull()
+            selectedFlow?.collect { profileId ->
+                // AuthManager publishes null only before initialization; a real
+                // selection (including the default profile) is always non-null.
+                if (profileId != null) {
+                    _uiState.update { it.copy(selectedProfileId = profileId) }
+                }
+            }
+        }
     }
 
     /** Initialize editable address drafts once, so later reloads never clobber typing. */

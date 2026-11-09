@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.settings
 
+import com.m57.hermescontrol.data.config.AutoSwitchConfig
+import com.m57.hermescontrol.data.config.AutoSwitchSource
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.BusySendMode
@@ -20,6 +22,7 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -42,6 +45,8 @@ class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
     private var storedSelectedProfileId: String? = null
+
+    private val selectedProfileFlow = MutableStateFlow<String?>(null)
 
     private val testProfiles =
         listOf(
@@ -125,6 +130,8 @@ class SettingsViewModelTest {
 
         // Default stubs
         storedSelectedProfileId = null
+        selectedProfileFlow.value = null
+        every { AuthManager.selectedProfileFlow } returns selectedProfileFlow
 
         every { AuthManager.getHost() } returns "127.0.0.1"
         every { AuthManager.getPort() } returns 9119
@@ -215,6 +222,44 @@ class SettingsViewModelTest {
         assertEquals(2, state.profiles.size)
         assertEquals("prof-1", state.selectedProfileId)
         assertEquals("Work", state.renameProfileName)
+    }
+
+    @Test
+    fun activeConnectionStatusTracksBackgroundProfileSwitches() {
+        val viewModel = createViewModel()
+        assertEquals(null, viewModel.uiState.value.selectedProfileId)
+
+        // An automatic Home/Remote switch re-homes the selected profile in the
+        // background without a settings reload; the status card must follow it.
+        selectedProfileFlow.value = "prof-1"
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("prof-1", viewModel.uiState.value.selectedProfileId)
+
+        selectedProfileFlow.value = "prof-2"
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("prof-2", viewModel.uiState.value.selectedProfileId)
+    }
+
+    @Test
+    fun statusCardSourceIsDerivedFromTheActiveProfile() {
+        val config =
+            AutoSwitchConfig(
+                enabled = true,
+                homeProfileId = "home",
+                remoteProfileId = "remote",
+            )
+        assertEquals(
+            AutoSwitchSource.HOME,
+            SettingsUiState(selectedProfileId = "home", autoSwitch = config).autoSwitchActiveSource,
+        )
+        assertEquals(
+            AutoSwitchSource.REMOTE,
+            SettingsUiState(selectedProfileId = "remote", autoSwitch = config).autoSwitchActiveSource,
+        )
+        assertEquals(
+            AutoSwitchSource.MANUAL,
+            SettingsUiState(selectedProfileId = "other", autoSwitch = config).autoSwitchActiveSource,
+        )
     }
 
     @Test
