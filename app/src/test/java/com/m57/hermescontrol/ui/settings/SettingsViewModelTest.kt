@@ -652,4 +652,45 @@ class SettingsViewModelTest {
             assertEquals(false, viewModel.uiState.value.isTesting)
             assertEquals("✅ Connected successfully", viewModel.uiState.value.testResult)
         }
+
+    @Test
+    fun testTestConnection_blankTokenInCookieTicketMode_stillProbesServer() =
+        runTest {
+            val mockApi = mockk<HermesApiService>()
+            every { ApiClient.hermesApi } returns mockApi
+            coEvery { mockApi.getStatus() } returns Response.success(StatusResponse(version = "1.0"))
+            coEvery { mockApi.getSessionStats() } returns
+                Response.success(SessionStatsResponse(total = 2, messages = 5))
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals("", viewModel.uiState.value.token)
+
+            viewModel.testConnection()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(false, viewModel.uiState.value.isTesting)
+            assertEquals("✅ Connected successfully", viewModel.uiState.value.testResult)
+            coVerify(exactly = 1) { mockApi.getStatus() }
+            coVerify(exactly = 1) { mockApi.getSessionStats() }
+        }
+
+    @Test
+    fun testTestConnection_blankToken_serverRejects_reportsAuthFailure() =
+        runTest {
+            val mockApi = mockk<HermesApiService>()
+            every { ApiClient.hermesApi } returns mockApi
+            coEvery { mockApi.getStatus() } returns Response.success(StatusResponse(version = "1.0"))
+            coEvery { mockApi.getSessionStats() } returns Response.error(401, "".toResponseBody(null))
+
+            val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            viewModel.testConnection()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(false, viewModel.uiState.value.isTesting)
+            assertEquals("❌ Key rejected by server (401 Unauthorized)", viewModel.uiState.value.testResult)
+            coVerify(exactly = 1) { mockApi.getSessionStats() }
+        }
 }

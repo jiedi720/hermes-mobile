@@ -747,12 +747,11 @@ class SettingsViewModel(
     }
 
     fun testConnection() {
-        val state = _uiState.value
-        if (state.token.isBlank()) {
-            _uiState.update { it.copy(testResult = "❌ Token is required") }
-            return
-        }
-
+        // A static token is only one of several auth modes (cookie/ticket,
+        // password login, browser login). In those modes the token is empty by
+        // design, so gating the test on it reports a false "Token is required".
+        // Let the real requests run and let the server decide: getSessionStats()
+        // below is the authoritative credential check.
         // Save first so ApiClient uses updated settings
         save()
 
