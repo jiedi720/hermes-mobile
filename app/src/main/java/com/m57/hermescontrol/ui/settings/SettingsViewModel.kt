@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.config.AutoSwitchConfig
 import com.m57.hermescontrol.data.config.AutoSwitchSource
 import com.m57.hermescontrol.data.config.AutoSwitchStatus
 import com.m57.hermescontrol.data.config.ConnectionProfile
+import com.m57.hermescontrol.data.config.alignAutoSwitchAuthParam
 import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.config.validateDashboardAddress
 import com.m57.hermescontrol.data.local.AuthManager
@@ -296,6 +297,11 @@ class SettingsViewModel(
 
         val profiles = AuthManager.getConnectionProfiles().toMutableList()
         val topLevelBaseUrl = AuthManager.getBaseUrl()
+        // Both presets reach the same dashboard, so inherit the live connection's
+        // WebSocket auth mode instead of defaulting new profiles to token mode.
+        val authParam =
+            runCatching { AuthManager.serverStore.getLatestState().wsAuthParam }
+                .getOrDefault("ticket")
         val homeId =
             resolveAutoSwitchProfile(profiles, state.autoSwitchHomeProfileId, homeUrl, "Home", topLevelBaseUrl)
         val remoteId =
@@ -310,7 +316,8 @@ class SettingsViewModel(
             return
         }
 
-        AuthManager.saveConnectionProfiles(profiles)
+        val alignedProfiles = alignAutoSwitchAuthParam(profiles, homeId, remoteId, authParam)
+        AuthManager.saveConnectionProfiles(alignedProfiles)
         val config =
             AutoSwitchConfig(
                 enabled = state.autoSwitch.enabled,
@@ -330,7 +337,7 @@ class SettingsViewModel(
                 autoSwitchHomeError = null,
                 autoSwitchRemoteError = null,
                 autoSwitchSaved = true,
-                profiles = profiles,
+                profiles = alignedProfiles,
             )
         }
         // Apply immediately so the live status reflects the real connection.
@@ -371,10 +378,8 @@ class SettingsViewModel(
             ConnectionProfile(
                 name = label,
                 baseUrl = normalizedUrl,
-                wsAuthParam = "token",
             )
         profiles.add(created)
-        AuthManager.setProfileToken(created.id, "")
         return created.id
     }
 

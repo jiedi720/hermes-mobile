@@ -27,6 +27,27 @@ fun ServerStoreState.selfHealed(): ServerStoreState {
     )
 }
 
+/**
+ * Home and Remote presets point at the same dashboard service (LAN vs external
+ * address), so both must use the WebSocket auth mode of the currently selected
+ * connection. A freshly created profile defaults to token mode, which would
+ * make a gated/ticket dashboard try `?token=` and never connect. This also
+ * repairs a preset profile saved by an older build when the user re-saves.
+ */
+fun alignAutoSwitchAuthParam(
+    profiles: List<ConnectionProfile>,
+    homeProfileId: String?,
+    remoteProfileId: String?,
+    authParam: String,
+): List<ConnectionProfile> =
+    profiles.map { profile ->
+        if (profile.id == homeProfileId || profile.id == remoteProfileId) {
+            profile.copy(wsAuthParam = authParam)
+        } else {
+            profile
+        }
+    }
+
 val ServerStoreState.resolvedBaseUrl: String
     get() {
         val selected = connectionProfiles.firstOrNull { it.id == selectedProfileId }
