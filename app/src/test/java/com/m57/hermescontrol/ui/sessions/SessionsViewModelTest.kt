@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.sessions
 
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.DataScope
+import com.m57.hermescontrol.data.model.EmptySessionsCountResponse
 import com.m57.hermescontrol.data.model.LiveSessionSnapshot
 import com.m57.hermescontrol.data.model.LiveWorkCounts
 import com.m57.hermescontrol.data.model.LiveWorkRoster
@@ -9,6 +10,7 @@ import com.m57.hermescontrol.data.model.ProjectInfo
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionLiveStatus
+import com.m57.hermescontrol.data.model.SessionMutationSnapshot
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionSearchResult
@@ -42,6 +44,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -1407,5 +1410,78 @@ class SessionsViewModelTest {
                 viewModel.uiState.value.errorMessage!!
                     .contains("HTTP 500"),
             )
+        }
+
+    @Test
+    fun `removable empty rows exclude sessions with messages and archived rows`() {
+        assertTrue(SessionInfo("a", message_count = 0).isRemovableEmpty())
+        assertFalse(SessionInfo("b", message_count = 2).isRemovableEmpty())
+        assertFalse(SessionInfo("c", message_count = 0, archived = true).isRemovableEmpty())
+        assertFalse(SessionInfo("d").isRemovableEmpty())
+    }
+
+    @Test
+    fun `empty cleanup falls back to fenced row deletes on gateway 409`() =
+        runTest {
+            coEvery { mockApi.deleteEmptySessions() } returns
+                Response.error(
+                    409,
+                    """{"detail":"Exclusive maintenance refused: Gateway runtime already owns profile"}"""
+                        .toResponseBody(null),
+                )
+            coEvery { mockApi.getSessions(any(), any(), any(), any(), any(), any()) } returns
+                Response.success(
+                    SessionListResponse(
+                        sessions =
+                            listOf(
+                                SessionInfo("empty-1", message_count = 0),
+                                SessionInfo("empty-2", message_count = 0),
+                                SessionInfo("kept", message_count = 3),
+                                SessionInfo("archived-empty", message_count = 0, archived = true),
+                            ),
+                        total = 4,
+                        limit = 50,
+                        offset = 0,
+                    ),
+                )
+            coEvery { mockApi.getSessionMutationSnapshot(any()) } answers {
+                Response.success(
+                    SessionMutationSnapshot(
+                        sessionId = firstArg(),
+                        exists = true,
+                        runtimeRevision = JsonPrimitive(0),
+                        runtimeGeneration = JsonPrimitive(0),
+                    ),
+                )
+            }
+            coEvery { mockApi.deleteSession(any(), any(), any(), any()) } returns Response.success(Unit)
+            coEvery { mockApi.getEmptySessionCount() } returns Response.success(EmptySessionsCountResponse(0))
+
+            val viewModel = createViewModel()
+            viewModel.confirmEmptyCleanup()
+            advanceUntilIdle()
+
+            assertEquals("Deleted 2 empty sessions", viewModel.uiState.value.toastMessage)
+            assertEquals(0, viewModel.uiState.value.emptyCount)
+            assertFalse(viewModel.uiState.value.isCleaningEmpty)
+            coVerify(exactly = 2) { mockApi.deleteSession(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `empty cleanup reports non-409 failures without row deletes`() =
+        runTest {
+            coEvery { mockApi.deleteEmptySessions() } returns
+                Response.error(500, """{"detail":"boom"}""".toResponseBody(null))
+
+            val viewModel = createViewModel()
+            viewModel.confirmEmptyCleanup()
+            advanceUntilIdle()
+
+            assertTrue(
+                viewModel.uiState.value.toastMessage!!
+                    .startsWith("Cleanup failed:"),
+            )
+            assertFalse(viewModel.uiState.value.isCleaningEmpty)
+            coVerify(exactly = 0) { mockApi.deleteSession(any(), any(), any(), any()) }
         }
 }

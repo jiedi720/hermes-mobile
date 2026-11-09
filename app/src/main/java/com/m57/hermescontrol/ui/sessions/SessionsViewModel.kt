@@ -448,6 +448,7 @@ class SessionsViewModel(
         const val PRUNE_PREVIEW_DEBOUNCE_MS = 350L
         const val MAX_STITCH_PER_PAGE = 8
         const val MAX_STITCH_ROUNDS = 3
+        const val MAX_EMPTY_CLEANUP_PAGES = 20
         const val LIVE_STATUS_POLL_INTERVAL_MS = 30_000L
     }
 
@@ -1750,6 +1751,14 @@ class SessionsViewModel(
                 runCatching {
                     safeApiCall { ApiClient.hermesApi.deleteEmptySessions() }
                 }.getOrNull()
+            // A live gateway owns the session store, so the offline bulk endpoint
+            // refuses exclusive maintenance with 409. The fenced single-row DELETE
+            // still works (see pruneLive), so clean up the same rows one by one.
+            val error = (result as? NetworkResult.Failure)?.error
+            if (error is NetworkError.Http && error.code == 409) {
+                cleanupEmptyLive()
+                return@launch
+            }
             when (result) {
                 is NetworkResult.Success -> {
                     ShortcutRefreshEvents.refresh()
@@ -1780,6 +1789,81 @@ class SessionsViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * Fallback for DELETE /api/sessions/empty when the gateway owns the session
+     * store (409 "Exclusive maintenance refused"). Collect the same candidate
+     * rows from the paged list, then delete each with a fenced single-row write.
+     */
+    private suspend fun cleanupEmptyLive() {
+        val ids = mutableListOf<String>()
+        var offset = 0
+        var pages = 0
+        while (pages < MAX_EMPTY_CLEANUP_PAGES) {
+            pages++
+            val page =
+                safeApiRead {
+                    ApiClient.hermesApi.getSessions(
+                        limit = PAGE_SIZE,
+                        offset = offset,
+                        order = "recent",
+                        excludeSources = "cron",
+                        archived = "exclude",
+                    )
+                }
+            val response =
+                when (page) {
+                    is NetworkResult.Success -> {
+                        page.data
+                    }
+
+                    is NetworkResult.Failure -> {
+                        finishEmptyCleanupLive(failure = page.error.message)
+                        return
+                    }
+                }
+            ids += response.sessions.filter { it.isRemovableEmpty() }.map { it.id }
+            if (response.sessions.size < PAGE_SIZE) break
+            val next = offset + PAGE_SIZE
+            if (response.total > 0 && next >= response.total) break
+            offset = next
+        }
+        var deleted = 0
+        var failed = 0
+        for (id in ids.distinct()) {
+            if (deleteSessionFenced(id) is NetworkResult.Success) deleted++ else failed++
+        }
+        finishEmptyCleanupLive(deleted, failed)
+    }
+
+    private fun finishEmptyCleanupLive(
+        deleted: Int = 0,
+        failed: Int = 0,
+        failure: String? = null,
+    ) {
+        ShortcutRefreshEvents.refresh()
+        val toast =
+            failure?.let { "Cleanup failed: $it" }
+                ?: buildString {
+                    append(
+                        if (deleted > 0) {
+                            "Deleted $deleted empty sessions"
+                        } else {
+                            "No empty sessions to delete"
+                        },
+                    )
+                    if (failed > 0) append(", $failed failed")
+                }
+        _uiState.update {
+            it.copy(
+                isCleaningEmpty = false,
+                emptyCount = if (failed == 0 && failure == null) 0 else it.emptyCount,
+                toastMessage = toast,
+            )
+        }
+        loadEmptyCount()
+        loadSessions()
     }
 
     // ── Toast ────────────────────────────────────────────────────────────
@@ -1981,3 +2065,10 @@ class SessionsViewModel(
         stopLiveStatusTracking()
     }
 }
+
+/**
+ * Matches GET /api/sessions/empty/count: a row with no messages that is not
+ * archived. Rows still being composed never reach the paged list, so this is
+ * exactly the set the offline bulk endpoint would have removed.
+ */
+internal fun SessionInfo.isRemovableEmpty(): Boolean = message_count == 0 && archived != true
