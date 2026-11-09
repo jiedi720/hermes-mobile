@@ -60,4 +60,8 @@ data class ServerStoreState(
     val dismissedUpdateTag: String? = null,
     // App version whose post-update "What's new" dialog was already handled.
     val lastSeenVersion: String? = null,
+    // Home / Remote address presets and automatic connection switching.
+    val autoSwitch: AutoSwitchConfig = AutoSwitchConfig(),
+    // Last reachability check, persisted so the settings readout survives a restart.
+    val autoSwitchStatus: AutoSwitchStatus = AutoSwitchStatus(),
 )

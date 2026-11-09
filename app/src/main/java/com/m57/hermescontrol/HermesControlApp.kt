@@ -19,6 +19,7 @@ import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerCaRestrictions
 import com.m57.hermescontrol.data.remote.ServerTrust
+import com.m57.hermescontrol.data.session.NetworkAutoSwitchCoordinator
 import com.m57.hermescontrol.data.session.SessionAttentionStore
 import com.m57.hermescontrol.data.session.SessionAttentionTracker
 import com.m57.hermescontrol.data.tunnel.SshTunnelController
@@ -57,6 +58,9 @@ class HermesControlApp :
         ComposerDraftStore.get(this)
         LauncherShortcuts.initialize(this, appScope)
         NetworkMonitor.init(this)
+        // Home/Remote presets: probe on cold start, network changes and resume.
+        // Waits internally for AuthManager to reach Ready before its first check.
+        NetworkAutoSwitchCoordinator.start(appScope)
         SessionListCacheStore.init(this)
         // Issue #1642: "finished, not opened yet" marks for History.
         SessionAttentionStore.init(this)

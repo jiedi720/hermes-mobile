@@ -37,6 +37,7 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SshTunnelButton
 import com.m57.hermescontrol.ui.settings.components.AboutSection
 import com.m57.hermescontrol.ui.settings.components.AppearanceSection
+import com.m57.hermescontrol.ui.settings.components.AutoSwitchSection
 import com.m57.hermescontrol.ui.settings.components.BehaviorSection
 import com.m57.hermescontrol.ui.settings.components.ChatSection
 import com.m57.hermescontrol.ui.settings.components.ConnectionSection
@@ -89,6 +90,17 @@ internal fun SettingsConnectionPage(
                 viewModel = viewModel,
                 passwordVisible = passwordVisible,
                 onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
+            )
+
+            AutoSwitchSection(
+                state = state,
+                onEnabledChange = viewModel::onAutoSwitchEnabledChange,
+                onHomeAddressChange = viewModel::onAutoSwitchHomeAddressChange,
+                onRemoteAddressChange = viewModel::onAutoSwitchRemoteAddressChange,
+                onHomeProfileChange = viewModel::onAutoSwitchHomeProfileChange,
+                onRemoteProfileChange = viewModel::onAutoSwitchRemoteProfileChange,
+                onSave = viewModel::saveAutoSwitch,
+                onCheckNow = viewModel::checkAutoSwitchNow,
             )
 
             TestResultCard(testResult = state.testResult)

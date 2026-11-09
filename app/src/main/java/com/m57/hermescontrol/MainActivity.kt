@@ -45,6 +45,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.DatabaseUnavailableException
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
+import com.m57.hermescontrol.data.session.NetworkAutoSwitchCoordinator
 import com.m57.hermescontrol.data.tunnel.SshTunnelController
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.update.WhatsNewNotice
@@ -397,6 +398,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         appLockController.resume()
+        // Re-probe the Home dashboard on every foreground return. The
+        // coordinator debounces this against the cold-start check.
+        NetworkAutoSwitchCoordinator.onAppForeground()
         lifecycleScope.launch {
             AuthManager.initializationState.first { it == AuthManager.InitializationState.Ready }
             UpdateNoticeManager.checkOnLaunch()

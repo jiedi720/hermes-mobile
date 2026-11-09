@@ -91,12 +91,33 @@ object ProfileSwitchCoordinator {
      *     the new server (desktop requestFreshSession parity).
      *  4. Re-dial the WebSocket off the main thread (the ticket mint does
      *     blocking I/O — NetworkOnMainThreadException otherwise).
+     *
+     * When [preservePendingMessages] is true (automatic Home/Remote switching),
+     * unsent outbound frames are stashed under the connection being left and
+     * only restored when the app returns to that exact connection. This keeps
+     * the user's in-flight messages without ever replaying them into a
+     * different server's socket.
      */
-    suspend fun switchConnectionProfile(profileId: String?) {
+    suspend fun switchConnectionProfile(
+        profileId: String?,
+        preservePendingMessages: Boolean = false,
+    ) {
         switchMutex.withLock {
             if (!ProfileLock.allowsConnection(profileId)) return@withLock
+            val fromId = AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID
+            val stashed =
+                if (preservePendingMessages) {
+                    HermesWsClient.snapshotQueuedFrames()
+                } else {
+                    emptyList()
+                }
             HermesWsClient.disconnect(clearPendingMessages = true)
+            if (stashed.isNotEmpty()) PendingMessageStash.save(fromId, stashed)
             prepareConnectionProfileUnlocked(profileId)
+            if (preservePendingMessages) {
+                val toId = profileId ?: AuthManager.DEFAULT_PROFILE_ID
+                HermesWsClient.restoreQueuedFrames(PendingMessageStash.take(toId))
+            }
             withContext(ioDispatcher) {
                 HermesWsClient.connect()
             }

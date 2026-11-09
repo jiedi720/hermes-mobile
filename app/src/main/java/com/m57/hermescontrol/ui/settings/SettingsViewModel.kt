@@ -2,8 +2,12 @@ package com.m57.hermescontrol.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.config.AutoSwitchConfig
+import com.m57.hermescontrol.data.config.AutoSwitchSource
+import com.m57.hermescontrol.data.config.AutoSwitchStatus
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.resolveBaseUrl
+import com.m57.hermescontrol.data.config.validateDashboardAddress
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.ComposerDraftStore
 import com.m57.hermescontrol.data.local.SessionListCacheStore
@@ -14,6 +18,7 @@ import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.NetworkAutoSwitchCoordinator
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.session.SessionAttentionStore
 import com.m57.hermescontrol.data.tunnel.SshTunnelController
@@ -72,7 +77,31 @@ data class SettingsUiState(
     val profileToDeleteId: String? = null,
     val profileToDeleteName: String = "",
     val navigateToLogin: Boolean = false,
-)
+    // Network auto-switch (Home LAN / Remote) configuration and live status.
+    val autoSwitch: AutoSwitchConfig = AutoSwitchConfig(),
+    val autoSwitchStatus: AutoSwitchStatus = AutoSwitchStatus(),
+    val autoSwitchChecking: Boolean = false,
+    val autoSwitchHomeDraft: String = "",
+    val autoSwitchRemoteDraft: String = "",
+    val autoSwitchHomeProfileId: String? = null,
+    val autoSwitchRemoteProfileId: String? = null,
+    val autoSwitchHomeError: String? = null,
+    val autoSwitchRemoteError: String? = null,
+    val autoSwitchSaved: Boolean = false,
+) {
+    /**
+     * Derived from the ACTIVE local connection, not from a cached status label,
+     * so the readout always reflects the connection the app is really using.
+     */
+    val autoSwitchActiveSource: AutoSwitchSource
+        get() =
+            when (selectedProfileId) {
+                null -> AutoSwitchSource.MANUAL
+                autoSwitch.homeProfileId -> AutoSwitchSource.HOME
+                autoSwitch.remoteProfileId -> AutoSwitchSource.REMOTE
+                else -> AutoSwitchSource.MANUAL
+            }
+}
 
 class SettingsViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -83,6 +112,31 @@ class SettingsViewModel(
     init {
         viewModelScope.launch(ioDispatcher) {
             loadSettings()
+            loadAutoSwitchDrafts()
+        }
+        viewModelScope.launch {
+            NetworkAutoSwitchCoordinator.state.collect { runtime ->
+                _uiState.update {
+                    it.copy(
+                        autoSwitch = runtime.config,
+                        autoSwitchStatus = runtime.status,
+                        autoSwitchChecking = runtime.checking,
+                    )
+                }
+            }
+        }
+    }
+
+    /** Initialize editable address drafts once, so later reloads never clobber typing. */
+    private fun loadAutoSwitchDrafts() {
+        val config = AuthManager.serverStore.getLatestState().autoSwitch
+        _uiState.update {
+            it.copy(
+                autoSwitchHomeDraft = config.homeAddress,
+                autoSwitchRemoteDraft = config.remoteAddress,
+                autoSwitchHomeProfileId = config.homeProfileId,
+                autoSwitchRemoteProfileId = config.remoteProfileId,
+            )
         }
     }
 
@@ -111,6 +165,7 @@ class SettingsViewModel(
         val notifyKanbanAlerts = AuthManager.isNotifyKanbanAlerts()
         val profiles = AuthManager.getConnectionProfiles()
         val appLanguage = AuthManager.getAppLanguage()
+        val storeState = AuthManager.serverStore.getLatestState()
         val renameProfileName =
             profiles.firstOrNull { p -> p.id == selectedId }?.name ?: ""
         val transportWarning =
@@ -145,11 +200,15 @@ class SettingsViewModel(
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
                 appLanguage = appLanguage,
+                autoSwitch = storeState.autoSwitch,
+                autoSwitchStatus = storeState.autoSwitchStatus,
             )
         }
     }
 
     fun selectProfile(profileId: String?) {
+        // A user-chosen connection wins over automatic switching for a cool-down window.
+        NetworkAutoSwitchCoordinator.noteManualSelection()
         viewModelScope.launch(ioDispatcher) {
             // The coordinator re-homes EVERYTHING: selection + Retrofit +
             // WebSocket re-dial, so chat doesn't stay glued to the previous
@@ -157,6 +216,161 @@ class SettingsViewModel(
             ProfileSwitchCoordinator.switchConnectionProfile(profileId)
             loadSettings()
         }
+    }
+
+    // ── Network auto-switch (Home LAN / Remote) ──────────────────────────
+
+    fun onAutoSwitchEnabledChange(enabled: Boolean) {
+        val config =
+            AuthManager.serverStore
+                .getLatestState()
+                .autoSwitch
+                .copy(enabled = enabled)
+        AuthManager.serverStore.update { it.copy(autoSwitch = config) }
+        _uiState.update { it.copy(autoSwitch = config, autoSwitchSaved = false) }
+    }
+
+    fun onAutoSwitchHomeAddressChange(value: String) {
+        val trimmed = value.trim()
+        val error = if (trimmed.isBlank()) null else validateDashboardAddress(trimmed).error
+        _uiState.update {
+            it.copy(
+                autoSwitchHomeDraft = trimmed,
+                autoSwitchHomeError = error,
+                autoSwitchSaved = false,
+            )
+        }
+    }
+
+    fun onAutoSwitchRemoteAddressChange(value: String) {
+        val trimmed = value.trim()
+        val error = if (trimmed.isBlank()) null else validateDashboardAddress(trimmed).error
+        _uiState.update {
+            it.copy(
+                autoSwitchRemoteDraft = trimmed,
+                autoSwitchRemoteError = error,
+                autoSwitchSaved = false,
+            )
+        }
+    }
+
+    fun onAutoSwitchHomeProfileChange(profileId: String?) {
+        _uiState.update { it.copy(autoSwitchHomeProfileId = profileId, autoSwitchSaved = false) }
+    }
+
+    fun onAutoSwitchRemoteProfileChange(profileId: String?) {
+        _uiState.update { it.copy(autoSwitchRemoteProfileId = profileId, autoSwitchSaved = false) }
+    }
+
+    /** Validate both addresses, resolve/create the two local profiles, then persist. */
+    fun saveAutoSwitch() {
+        val state = _uiState.value
+        val home = validateDashboardAddress(state.autoSwitchHomeDraft)
+        val remote = validateDashboardAddress(state.autoSwitchRemoteDraft)
+        if (!home.isValid || !remote.isValid) {
+            _uiState.update {
+                it.copy(
+                    autoSwitchHomeError = home.error,
+                    autoSwitchRemoteError = remote.error,
+                    autoSwitchSaved = false,
+                )
+            }
+            return
+        }
+        val homeUrl = home.normalized ?: return
+        val remoteUrl = remote.normalized ?: return
+        if (homeUrl == remoteUrl) {
+            _uiState.update {
+                it.copy(
+                    autoSwitchRemoteError = "Home and Remote addresses must differ",
+                    autoSwitchSaved = false,
+                )
+            }
+            return
+        }
+
+        val profiles = AuthManager.getConnectionProfiles().toMutableList()
+        val topLevelBaseUrl = AuthManager.getBaseUrl()
+        val homeId =
+            resolveAutoSwitchProfile(profiles, state.autoSwitchHomeProfileId, homeUrl, "Home", topLevelBaseUrl)
+        val remoteId =
+            resolveAutoSwitchProfile(profiles, state.autoSwitchRemoteProfileId, remoteUrl, "Remote", topLevelBaseUrl)
+        if (homeId == remoteId) {
+            _uiState.update {
+                it.copy(
+                    autoSwitchRemoteError = "Home and Remote must use different connection profiles",
+                    autoSwitchSaved = false,
+                )
+            }
+            return
+        }
+
+        AuthManager.saveConnectionProfiles(profiles)
+        val config =
+            AutoSwitchConfig(
+                enabled = state.autoSwitch.enabled,
+                homeAddress = homeUrl,
+                remoteAddress = remoteUrl,
+                homeProfileId = homeId,
+                remoteProfileId = remoteId,
+            )
+        AuthManager.serverStore.update { it.copy(autoSwitch = config) }
+        _uiState.update {
+            it.copy(
+                autoSwitch = config,
+                autoSwitchHomeDraft = homeUrl,
+                autoSwitchRemoteDraft = remoteUrl,
+                autoSwitchHomeProfileId = homeId,
+                autoSwitchRemoteProfileId = remoteId,
+                autoSwitchHomeError = null,
+                autoSwitchRemoteError = null,
+                autoSwitchSaved = true,
+                profiles = profiles,
+            )
+        }
+        // Apply immediately so the live status reflects the real connection.
+        NetworkAutoSwitchCoordinator.checkNow()
+    }
+
+    fun checkAutoSwitchNow() {
+        _uiState.update { it.copy(autoSwitchSaved = false) }
+        NetworkAutoSwitchCoordinator.checkNow()
+    }
+
+    /**
+     * Reuse a profile the user picked (or one already pointing at the same
+     * normalized URL); otherwise create a new local [ConnectionProfile] so
+     * each address gets its own token/cookie/header scope.
+     */
+    private fun resolveAutoSwitchProfile(
+        profiles: MutableList<ConnectionProfile>,
+        preferredId: String?,
+        normalizedUrl: String,
+        label: String,
+        topLevelBaseUrl: String,
+    ): String {
+        val picked = profiles.firstOrNull { it.id == preferredId }
+        if (picked != null) {
+            val index = profiles.indexOf(picked)
+            if (picked.resolveBaseUrl(topLevelBaseUrl) != normalizedUrl) {
+                profiles[index] = picked.copy(baseUrl = normalizedUrl)
+            }
+            return picked.id
+        }
+        val matching =
+            profiles.firstOrNull { profile ->
+                runCatching { profile.resolveBaseUrl(topLevelBaseUrl) }.getOrNull() == normalizedUrl
+            }
+        if (matching != null) return matching.id
+        val created =
+            ConnectionProfile(
+                name = label,
+                baseUrl = normalizedUrl,
+                wsAuthParam = "token",
+            )
+        profiles.add(created)
+        AuthManager.setProfileToken(created.id, "")
+        return created.id
     }
 
     fun deleteProfile(profileId: String) {

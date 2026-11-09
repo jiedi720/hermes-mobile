@@ -350,6 +350,36 @@ preferences. Saving an empty list removes the headers for that URL.
 
 Have multiple gateways? Switch between them in **Settings → Connection profiles**. Each profile stores its own host, port, and token.
 
+### Home / Remote presets and automatic switching
+
+Hermes Mobile can keep two dashboard addresses and switch between them based on **whether the Home dashboard is actually reachable**, not on whether the phone is on Wi-Fi or mobile data. Open **Settings → Connection → Network auto-switch**.
+
+**Configuration**
+
+1. Enter the **Home LAN address** (for example `http://192.168.66.88:9119`) and the **External address** (for example `https://app-9119-<your-account>.cn60.ugdocker.link/prefix/`). These are examples only — type your real addresses in the app; no domain, account or port is hardcoded.
+2. Pick a **Home connection profile** and an **External connection profile**, or leave both on **Auto (reuse or create)**. With Auto, the app reuses a saved profile pointing at the same normalized URL, or creates a new one named `Home` / `Remote`.
+3. Turn on **Automatic switching**, tap **Save presets**, then **Check now**.
+
+Addresses are normalized with the same rules as the rest of the app: a missing scheme becomes `http://`, `https://` must be typed in full, embedded credentials, `?query` and `#fragment` are rejected, and **scheme, port and reverse-proxy path prefix are preserved** across restarts. Sign in to each connection once: every profile keeps its own token, cookie scope, custom headers, mTLS/SSH configuration and WebSocket ticket. These presets are local *connection* profiles (which server this device talks to); they are unrelated to the server-side Hermes Agent Profile.
+
+**How the switch works**
+
+- A lightweight, unauthenticated `GET <home>/api/status` probe runs on cold start, on every return to the foreground, when Android's default network changes, and on **Check now**. It uses an independent short-timeout HTTP client with no bearer token, no cookies and no redirect following, so a captive portal cannot be mistaken for the NAS.
+- A 3xx (portal / HTTP→HTTPS landing page) or a 200 HTML page without a Hermes status payload means **not reachable**. A 401/403 or another non-3xx status from the target server means **reachable** — the NAS itself answered. DNS failure, connection refused, timeout and TLS handshake failure mean **not reachable**.
+- Reachable → the Home profile. Unreachable → the Remote profile. A quick second probe absorbs transient blips; contradictory results (`unstable`) switch nothing.
+- Checks are debounced (3 s minimum interval, 1.2 s quiet period for network changes) and serialized by a mutex, so flapping cannot produce concurrent switches. A manually selected connection wins for 5 minutes; **Check now** overrides that cool-down. Automatic switching off never changes the connection.
+- Switching goes through the existing `ProfileSwitchCoordinator`: the old socket is closed, the local selection / token / cookie scope / Retrofit client are re-homed, and the WebSocket is re-dialed with a fresh ticket. Unsent outbound frames are stashed under the connection being left and restored only when the app returns to that exact connection — they are never replayed into the other server. Message queueing, ticket refresh, reconnect and session recovery are unchanged.
+- After a switch the app verifies **both** the new REST API and that the WebSocket actually reaches `CONNECTED` (GatewayReady). If either fails it rolls back to the original connection and shows the reason. No half-switched state is left behind.
+- The status card shows the **real** active connection (derived from the selected profile id), the last check time, the last result and any error.
+
+**ugdocker.link and WebSocket / WSS limitations**
+
+For an external tunnel such as `https://app-9119-<account>.cn60.ugdocker.link/`, enter the full `https://` URL including any path prefix and trailing slash. `http://` is mapped to `ws://` and `https://` to `wss://`; REST calls and the WebSocket Gateway keep the same scheme, port and path prefix (for example `wss://…/prefix/api/ws?…`).
+
+> **Important:** a working external REST API does **not** prove that the reverse proxy supports WebSocket Upgrade / WSS. Many tunnels terminate or buffer the HTTP `Upgrade` header, so the dashboard REST endpoints answer while the Gateway socket never connects. The app never treats a switch as successful until the WebSocket reaches `CONNECTED`; if the tunnel cannot carry WSS the switch is rolled back and the status shows `WebSocket never reached GatewayReady (WSS upgrade may be unsupported)`. Verify the upgrade with a real client against your own external URL before relying on Remote chat. If WSS is unavailable, reach the Home address over a VPN/SSH tunnel instead.
+
+mTLS client certificates, SSH tunnels, Cloudflare Access and custom headers continue to apply: they are scoped by URL / connection profile and are never shared between Home and Remote.
+
 ### SSH tunnel
 
 If the dashboard is bound to loopback on its own host, or the phone cannot route to it, the app can carry the session over SSH instead of exposing the

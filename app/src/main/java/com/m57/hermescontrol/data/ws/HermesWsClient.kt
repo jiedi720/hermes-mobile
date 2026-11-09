@@ -223,6 +223,11 @@ object HermesWsClient {
 
     fun disconnect(clearPendingMessages: Boolean = false) = transport.disconnect(clearPendingMessages)
 
+    /** Stash seams for the automatic connection switch (see PendingMessageStash). */
+    internal fun snapshotQueuedFrames(): List<String> = transport.snapshotQueuedFrames()
+
+    internal fun restoreQueuedFrames(frames: List<String>) = transport.restoreQueuedFrames(frames)
+
     class HermesRpcException(
         message: String,
         val code: Int = 0,

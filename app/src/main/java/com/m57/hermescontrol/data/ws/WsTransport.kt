@@ -469,6 +469,31 @@ internal class WsTransport(
         }
     }
 
+    /**
+     * Read the queued outbound frames without consuming them. Used by the
+     * automatic connection switch to stash unsent user messages before the
+     * old socket is torn down.
+     */
+    internal fun snapshotQueuedFrames(): List<String> = synchronized(outboundLock) { messageQueue.toList() }
+
+    /**
+     * Restore frames stashed for a connection we are returning to. Called
+     * BEFORE [connect] so the existing drain in `onOpen` delivers them on the
+     * new socket. Frames from other servers are never restored here.
+     */
+    internal fun restoreQueuedFrames(frames: List<String>) {
+        if (frames.isEmpty()) return
+        synchronized(outboundLock) {
+            frames.forEach { json ->
+                val id =
+                    runCatching {
+                        OkHttpProvider.json.decodeFromString<JsonRpcRequest>(json).id
+                    }.getOrNull() ?: return@forEach
+                queueMessage(id, json)
+            }
+        }
+    }
+
     fun onRpcResult(id: String) {
         synchronized(outboundLock) {
             pendingPromptSubmits.remove(id)

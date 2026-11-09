@@ -460,6 +460,36 @@
     <string name="theme_system">System</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+
+    <!-- Network auto-switch (Home LAN / Remote) -->
+    <string name="autoswitch_title">Network auto-switch</string>
+    <string name="autoswitch_desc">Probe the Home dashboard and switch between your LAN and external connections automatically. The decision is based on a real HTTP probe, not on Wi-Fi vs mobile data.</string>
+    <string name="autoswitch_enable">Automatic switching</string>
+    <string name="autoswitch_enable_desc">Checks on cold start, when returning to the foreground, and when the default network changes.</string>
+    <string name="autoswitch_home_address">Home LAN address</string>
+    <string name="autoswitch_remote_address">External address</string>
+    <string name="autoswitch_home_hint">http://192.168.x.x:9119</string>
+    <string name="autoswitch_remote_hint">https://your-nas.example.com/prefix/</string>
+    <string name="autoswitch_home_profile">Home connection profile</string>
+    <string name="autoswitch_remote_profile">External connection profile</string>
+    <string name="autoswitch_profile_auto">Auto (reuse or create)</string>
+    <string name="autoswitch_status_title">Current status</string>
+    <string name="autoswitch_status_connection">Active connection: %1$s</string>
+    <string name="autoswitch_source_home">Home (LAN)</string>
+    <string name="autoswitch_source_remote">Remote (external)</string>
+    <string name="autoswitch_source_manual">Manual / other</string>
+    <string name="autoswitch_last_check">Last check: %1$s</string>
+    <string name="autoswitch_last_check_never">Last check: never</string>
+    <string name="autoswitch_last_result">Result: %1$s</string>
+    <string name="autoswitch_no_result">Result: no check yet</string>
+    <string name="autoswitch_error">Error: %1$s</string>
+    <string name="autoswitch_checking">Checking…</string>
+    <string name="autoswitch_check_now">Check now</string>
+    <string name="autoswitch_save">Save presets</string>
+    <string name="autoswitch_saved">Saved. Each connection keeps its own token, cookies and headers.</string>
+    <string name="autoswitch_note">Sign in to each connection once. A target that fails REST or WebSocket (WSS) verification is rolled back to the original connection.</string>
+    <string name="autoswitch_scheme_note">http:// becomes ws:// and https:// becomes wss://. Scheme, port and path prefix are preserved for REST and WebSocket.</string>
+
     <string name="settings_item_use_dynamic_colors">Dynamic Colors</string>
     <string name="settings_desc_use_dynamic_colors">Derive scheme from wallpaper (Android 12+)</string>
     <string name="settings_item_theme_preset">Preset Theme</string>
