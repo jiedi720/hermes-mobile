@@ -104,7 +104,6 @@ object ProfileSwitchCoordinator {
     ) {
         switchMutex.withLock {
             if (!ProfileLock.allowsConnection(profileId)) return@withLock
-            val fromId = AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID
             val stashed =
                 if (preservePendingMessages) {
                     HermesWsClient.snapshotQueuedFrames()
@@ -112,7 +111,10 @@ object ProfileSwitchCoordinator {
                     emptyList()
                 }
             HermesWsClient.disconnect(clearPendingMessages = true)
-            if (stashed.isNotEmpty()) PendingMessageStash.save(fromId, stashed)
+            if (stashed.isNotEmpty()) {
+                val fromId = AuthManager.getSelectedProfileId() ?: AuthManager.DEFAULT_PROFILE_ID
+                PendingMessageStash.save(fromId, stashed)
+            }
             prepareConnectionProfileUnlocked(profileId)
             if (preservePendingMessages) {
                 val toId = profileId ?: AuthManager.DEFAULT_PROFILE_ID

@@ -128,9 +128,11 @@ class NetworkAutoSwitchCoordinatorTest {
     fun `rapid network changes produce a single serialized switch`() =
         runTest {
             outcome = HomeDashboardProbe.Result.REACHABLE
-            repeat(3) {
-                launch { NetworkAutoSwitchCoordinator.check(AutoSwitchTrigger.NETWORK_CHANGE) }
-            }
+            val jobs =
+                List(3) {
+                    launch { NetworkAutoSwitchCoordinator.check(AutoSwitchTrigger.NETWORK_CHANGE) }
+                }
+            jobs.forEach { it.join() }
             assertEquals(1, switches.size)
             assertEquals(1, probeCalls)
         }

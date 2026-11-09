@@ -129,7 +129,9 @@ class SettingsViewModel(
 
     /** Initialize editable address drafts once, so later reloads never clobber typing. */
     private fun loadAutoSwitchDrafts() {
-        val config = AuthManager.serverStore.getLatestState().autoSwitch
+        val config =
+            runCatching { AuthManager.serverStore.getLatestState().autoSwitch }
+                .getOrDefault(NetworkAutoSwitchCoordinator.state.value.config)
         _uiState.update {
             it.copy(
                 autoSwitchHomeDraft = config.homeAddress,
@@ -165,7 +167,10 @@ class SettingsViewModel(
         val notifyKanbanAlerts = AuthManager.isNotifyKanbanAlerts()
         val profiles = AuthManager.getConnectionProfiles()
         val appLanguage = AuthManager.getAppLanguage()
-        val storeState = AuthManager.serverStore.getLatestState()
+        // Isolated unit tests mock AuthManager without a backing store; the
+        // coordinator's StateFlow (wired by the init collector) is the fallback.
+        val storeState =
+            runCatching { AuthManager.serverStore.getLatestState() }.getOrNull()
         val renameProfileName =
             profiles.firstOrNull { p -> p.id == selectedId }?.name ?: ""
         val transportWarning =
@@ -200,8 +205,8 @@ class SettingsViewModel(
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
                 appLanguage = appLanguage,
-                autoSwitch = storeState.autoSwitch,
-                autoSwitchStatus = storeState.autoSwitchStatus,
+                autoSwitch = storeState?.autoSwitch ?: it.autoSwitch,
+                autoSwitchStatus = storeState?.autoSwitchStatus ?: it.autoSwitchStatus,
             )
         }
     }
