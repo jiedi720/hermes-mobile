@@ -127,7 +127,11 @@ object NetworkAutoSwitchCoordinator {
             appScope.launch {
                 NetworkMonitor.transportChanges.collect { scheduleCheck(AutoSwitchTrigger.NETWORK_CHANGE) }
             }
-            check(AutoSwitchTrigger.COLD_START)
+            // Cold start races MainActivity.onResume(): the foreground check can
+            // claim the debounce window while DataStore is still loading, and its
+            // first publish may be swallowed. Force one real probe here so the
+            // cold-start trigger is never lost to the anti-flapping window.
+            check(AutoSwitchTrigger.COLD_START, force = true)
         }
     }
 

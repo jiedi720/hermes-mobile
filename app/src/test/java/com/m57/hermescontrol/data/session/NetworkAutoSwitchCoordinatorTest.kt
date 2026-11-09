@@ -182,4 +182,18 @@ class NetworkAutoSwitchCoordinatorTest {
             assertTrue(switches.isEmpty())
             assertEquals(AutoSwitchSource.HOME, published.last().activeSource)
         }
+
+    @Test
+    fun `a forced cold start check is not swallowed by the debounce window`() =
+        runTest {
+            NetworkAutoSwitchCoordinator.check(AutoSwitchTrigger.FOREGROUND)
+            // A second check inside the anti-flapping window is intentionally dropped.
+            NetworkAutoSwitchCoordinator.check(AutoSwitchTrigger.FOREGROUND)
+            assertEquals(1, probeCalls)
+
+            // Cold start must still run even if onResume claimed that window first.
+            NetworkAutoSwitchCoordinator.check(AutoSwitchTrigger.COLD_START, force = true)
+            assertEquals(2, probeCalls)
+            assertEquals(2, published.size)
+        }
 }
