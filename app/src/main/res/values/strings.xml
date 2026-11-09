@@ -1578,7 +1578,7 @@
     <string name="auth_login_username_label">Username</string>
     <string name="auth_login_password_label">Password</string>
     <string name="auth_login_action_connect">Connect</string>
-    <string name="auth_login_action_probing">Probing dashboard…</string>
+    <string name="auth_login_action_probing">Check server configuration</string>
     <string name="auth_login_probing_dashboard">Checking dashboard configuration…</string>
     <string name="auth_login_error_token_required">Session token is required</string>
     <string name="auth_login_error_username_required">Username is required</string>

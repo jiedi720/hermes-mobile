@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,10 +61,13 @@ import com.m57.hermescontrol.profilelock.LockedLandingContent
 import com.m57.hermescontrol.profilelock.ProfileLock
 import com.m57.hermescontrol.ui.common.CustomHeadersButton
 import com.m57.hermescontrol.ui.common.SshTunnelButton
+import kotlinx.coroutines.delay
 import com.m57.hermescontrol.ui.common.ExpressiveButton as Button
 import com.m57.hermescontrol.ui.common.ExpressiveCircularProgressIndicator as CircularProgressIndicator
 import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 import com.m57.hermescontrol.ui.common.ExpressiveOutlinedButton as OutlinedButton
+
+private const val AUTO_PROBE_DEBOUNCE_MS = 700L
 
 @Composable
 fun AuthLoginScreen(
@@ -139,6 +143,19 @@ fun AuthLoginScreen(
 
     var passwordVisible by remember { mutableStateOf(false) }
 
+    // Probe automatically once the user finishes typing an address. The old
+    // flow required an extra tap on a button labelled like a status message.
+    var addressEdited by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state.baseUrl, addressEdited) {
+        if (!addressEdited || state.authMode != null || state.probing || state.isLoading) {
+            return@LaunchedEffect
+        }
+        val candidate = state.baseUrl.trim()
+        if (!candidate.contains("://")) return@LaunchedEffect
+        delay(AUTO_PROBE_DEBOUNCE_MS)
+        viewModel.requestProbe(context)
+    }
+
     Box(
         modifier =
             modifier
@@ -213,7 +230,10 @@ fun AuthLoginScreen(
             // Server URL field
             OutlinedTextField(
                 value = state.baseUrl,
-                onValueChange = viewModel::onBaseUrlChange,
+                onValueChange = {
+                    addressEdited = true
+                    viewModel.onBaseUrlChange(it)
+                },
                 label = { Text(stringResource(R.string.auth_login_base_url_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),

@@ -1164,7 +1164,7 @@
     <string name="auth_login_username_label">用户名</string>
     <string name="auth_login_password_label">密码</string>
     <string name="auth_login_action_connect">连接</string>
-    <string name="auth_login_action_probing">正在探测 dashboard…</string>
+    <string name="auth_login_action_probing">检测服务器配置</string>
     <string name="auth_login_probing_dashboard">正在检查 dashboard 配置…</string>
     <string name="auth_login_error_token_required">需要填写会话令牌</string>
     <string name="auth_login_error_username_required">需要填写用户名</string>
