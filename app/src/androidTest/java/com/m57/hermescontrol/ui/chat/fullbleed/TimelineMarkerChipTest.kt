@@ -69,7 +69,7 @@ class TimelineMarkerChipTest {
     @Test
     fun longNotificationIsCollapsedByDefaultAndExpandsOnClick() {
         val body = (1..9).joinToString("\n") { "line-$it" }
-        val preview = "line-1\nline-2\nline-3\nline-4\n…"
+        val preview = "line-1 …"
         compose.setContent {
             HermesControlTheme {
                 TimelineMarkerChip(
@@ -106,7 +106,7 @@ class TimelineMarkerChipTest {
                         ChatMessage(
                             id = "short-target",
                             role = MessageRole.USER,
-                            content = "one\ntwo",
+                            content = "one",
                             displayKind = DisplayKind.INTERNAL_NOTIFICATION,
                         ),
                 )
@@ -115,7 +115,7 @@ class TimelineMarkerChipTest {
         compose
             .onNodeWithTag("timeline_marker_body", useUnmergedTree = true)
             .assertIsDisplayed()
-            .assertTextEquals("one\ntwo")
+            .assertTextEquals("one")
         compose.onNodeWithTag("timeline_marker_toggle", useUnmergedTree = true).assertDoesNotExist()
         compose
             .onNodeWithTag("timeline_marker_copy", useUnmergedTree = true)

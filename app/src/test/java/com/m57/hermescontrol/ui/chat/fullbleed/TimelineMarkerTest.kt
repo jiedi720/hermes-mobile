@@ -118,19 +118,14 @@ class TimelineMarkerTest {
     }
 
     @Test
-    fun notificationsWithinTheLineLimitAreNotCollapsed() {
-        val short = "one\ntwo"
-        val exactlyAtLimit = (1..NOTIFICATION_COLLAPSED_LINES).joinToString("\n") { "line-$it" }
-        assertEquals(short, collapsedNotificationPreview(short))
-        assertEquals(exactlyAtLimit, collapsedNotificationPreview(exactlyAtLimit))
+    fun singleLineNotificationsAreNotCollapsed() {
+        val single = "one"
+        assertEquals(single, collapsedNotificationPreview(single))
     }
 
     @Test
-    fun longNotificationPreviewKeepsFirstLinesAndAMarker() {
+    fun longNotificationPreviewKeepsOnlyTheFirstLine() {
         val body = (1..9).joinToString("\n") { "line-$it" }
-        assertEquals(
-            "line-1\nline-2\nline-3\nline-4\n…",
-            collapsedNotificationPreview(body),
-        )
+        assertEquals("line-1 …", collapsedNotificationPreview(body))
     }
 }

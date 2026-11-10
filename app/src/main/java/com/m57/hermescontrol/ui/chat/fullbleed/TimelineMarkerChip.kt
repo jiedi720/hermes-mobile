@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
@@ -88,13 +89,13 @@ internal fun timelineMarkerBody(message: ChatMessage): String? {
     return message.content.trim().takeIf { it.isNotBlank() }
 }
 
-internal const val NOTIFICATION_COLLAPSED_LINES = 4
+internal const val NOTIFICATION_COLLAPSED_LINES = 1
 
-/** Short preview for a collapsed notification; returns [body] unchanged when it already fits. */
+/** One-line preview for a collapsed notification; returns [body] unchanged when it already fits. */
 internal fun collapsedNotificationPreview(body: String): String {
     val lines = body.lines()
     if (lines.size <= NOTIFICATION_COLLAPSED_LINES) return body
-    return lines.take(NOTIFICATION_COLLAPSED_LINES).joinToString("\n") + "\n…"
+    return lines.take(NOTIFICATION_COLLAPSED_LINES).joinToString("\n").trimEnd() + " …"
 }
 
 /**
@@ -188,6 +189,8 @@ private fun NotificationTerminalPanel(
                     ),
                 color = TerminalForeground,
                 textAlign = TextAlign.Start,
+                maxLines = if (expanded || !collapsible) Int.MAX_VALUE else 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier =
                     Modifier
                         .fillMaxWidth()
