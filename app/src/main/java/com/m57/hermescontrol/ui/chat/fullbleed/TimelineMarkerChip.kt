@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +43,7 @@ import com.m57.hermescontrol.theme.TerminalForeground
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.DisplayKind
 import kotlinx.coroutines.launch
+import com.m57.hermescontrol.ui.common.ExpressiveIconButton as IconButton
 
 /**
  * Friendly label resource for a `display_kind` timeline marker (issue #904).
