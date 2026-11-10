@@ -1,6 +1,9 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ui.chat.ChatMessage
+import com.m57.hermescontrol.ui.chat.DisplayKind
+import com.m57.hermescontrol.ui.chat.MessageRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -67,5 +70,50 @@ class TimelineMarkerTest {
         assertNull(markerModelFromContent(""))
         assertNull(markerModelFromContent("[System: personality switched]"))
         assertNull(markerModelFromContent("changed to"))
+    }
+
+    @Test
+    fun internalNotificationKeepsItsDetail() {
+        val message =
+            ChatMessage(
+                role = MessageRole.USER,
+                content = "  Gateway runtime restarted; the session was reconnected.  ",
+                displayKind = DisplayKind.INTERNAL_NOTIFICATION,
+            )
+        assertEquals(
+            "Gateway runtime restarted; the session was reconnected.",
+            timelineMarkerBody(message),
+        )
+    }
+
+    @Test
+    fun otherMarkersDoNotExposeScaffoldingAsDetail() {
+        assertNull(
+            timelineMarkerBody(
+                ChatMessage(
+                    role = MessageRole.USER,
+                    content = "[System: The active model for this chat has changed to gpt-5.]",
+                    displayKind = DisplayKind.MODEL_SWITCH,
+                ),
+            ),
+        )
+        assertNull(
+            timelineMarkerBody(
+                ChatMessage(role = MessageRole.USER, content = "plain user message"),
+            ),
+        )
+    }
+
+    @Test
+    fun blankNotificationDetailIsNotRendered() {
+        assertNull(
+            timelineMarkerBody(
+                ChatMessage(
+                    role = MessageRole.USER,
+                    content = "   \n  ",
+                    displayKind = DisplayKind.INTERNAL_NOTIFICATION,
+                ),
+            ),
+        )
     }
 }

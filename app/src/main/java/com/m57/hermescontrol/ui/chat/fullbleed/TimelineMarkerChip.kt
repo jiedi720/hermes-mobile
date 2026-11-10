@@ -1,6 +1,6 @@
 package com.m57.hermescontrol.ui.chat.fullbleed
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.ChatMessage
@@ -51,11 +52,22 @@ internal fun markerModelFromContent(content: String): String? {
 private val MARKER_MODEL_REGEX = Regex("""changed to ([A-Za-z0-9_.\-]+)""")
 
 /**
+ * Detail to show under a marker's friendly label. Only `internal_notification`
+ * carries human-meaningful detail in [ChatMessage.content]; the other marker
+ * contents are model-facing scaffolding that the chip intentionally replaces
+ * with a short label. Returns `null` when there is no detail to render.
+ */
+internal fun timelineMarkerBody(message: ChatMessage): String? {
+    if (message.displayKind != DisplayKind.INTERNAL_NOTIFICATION) return null
+    return message.content.trim().takeIf { it.isNotBlank() }
+}
+
+/**
  * Centered timeline chip for a `display_kind` marker (issue #904): model
  * switches, personality switches and auto-continues render as a small
  * divider-style chip instead of a fake user bubble. Known kinds get friendly
  * copy; the model-switch chip names the model when the marker content
- * carries it.
+ * carries it. System notifications keep their detail visible under the label.
  */
 @Composable
 internal fun TimelineMarkerChip(
@@ -74,10 +86,11 @@ internal fun TimelineMarkerChip(
         } else {
             stringResource(labelRes)
         }
+    val body = timelineMarkerBody(message)
 
-    Box(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Surface(
             shape = RoundedCornerShape(50),
@@ -89,6 +102,19 @@ internal fun TimelineMarkerChip(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+        if (body != null) {
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier =
+                    Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 6.dp)
+                        .testTag("timeline_marker_body"),
             )
         }
     }
