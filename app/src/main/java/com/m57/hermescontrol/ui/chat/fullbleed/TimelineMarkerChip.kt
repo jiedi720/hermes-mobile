@@ -87,6 +87,12 @@ internal fun TimelineMarkerChip(
             stringResource(labelRes)
         }
     val body = timelineMarkerBody(message)
+    val labelStyle =
+        if (body != null) {
+            MaterialTheme.typography.labelMedium
+        } else {
+            MaterialTheme.typography.labelSmall
+        }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -99,7 +105,7 @@ internal fun TimelineMarkerChip(
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.labelSmall,
+                style = labelStyle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             )
@@ -107,11 +113,12 @@ internal fun TimelineMarkerChip(
         if (body != null) {
             Text(
                 text = body,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Start,
                 modifier =
                     Modifier
+                        .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .padding(top = 6.dp)
                         .testTag("timeline_marker_body"),
