@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
@@ -111,18 +112,30 @@ internal fun TimelineMarkerChip(
             )
         }
         if (body != null) {
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Start,
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.inverseSurface,
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .padding(top = 6.dp)
-                        .testTag("timeline_marker_body"),
-            )
+                        .padding(top = 6.dp),
+            ) {
+                Text(
+                    text = body,
+                    style =
+                        MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                        ),
+                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    textAlign = TextAlign.Start,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                            .testTag("timeline_marker_body"),
+                )
+            }
         }
     }
 }
