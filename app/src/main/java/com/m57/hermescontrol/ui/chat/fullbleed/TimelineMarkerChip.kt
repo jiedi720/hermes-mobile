@@ -16,6 +16,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.TerminalBackground
+import com.m57.hermescontrol.theme.TerminalForeground
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.DisplayKind
 
@@ -68,7 +70,9 @@ internal fun timelineMarkerBody(message: ChatMessage): String? {
  * switches, personality switches and auto-continues render as a small
  * divider-style chip instead of a fake user bubble. Known kinds get friendly
  * copy; the model-switch chip names the model when the marker content
- * carries it. System notifications keep their detail visible under the label.
+ * carries it. System notifications keep their detail under the label in a
+ * fixed CMD-style terminal panel (black background, amber monospace text)
+ * that looks identical in light and dark themes.
  */
 @Composable
 internal fun TimelineMarkerChip(
@@ -114,7 +118,7 @@ internal fun TimelineMarkerChip(
         if (body != null) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.inverseSurface,
+                color = TerminalBackground,
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -127,7 +131,7 @@ internal fun TimelineMarkerChip(
                         MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                         ),
-                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    color = TerminalForeground,
                     textAlign = TextAlign.Start,
                     modifier =
                         Modifier
